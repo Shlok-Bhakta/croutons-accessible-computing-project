@@ -75,6 +75,12 @@ function buildReadingModeCss(theme: ThemePreference): string {
       outline: 2px solid ${focusRing}; outline-offset: 2px;
     }
     #${READING_ROOT_ID} .croutons-reading-title { font-family: "Fraunces", Georgia, serif; font-size: 1.75rem; font-weight: 600; margin: 0 0 1rem; }
+    #${READING_ROOT_ID} .croutons-reading-content p {
+      margin: 0 0 1.5em;
+    }
+    #${READING_ROOT_ID} .croutons-reading-content p:last-child {
+      margin-bottom: 0;
+    }
     #${READING_ROOT_ID} .croutons-reading-content img { max-width: 100%; height: auto; }
     #${READING_ROOT_ID} .croutons-reading-content a { color: ${link}; }
   `
