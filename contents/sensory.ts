@@ -1,6 +1,11 @@
 import { Readability } from "@mozilla/readability"
 import type { PlasmoCSConfig } from "plasmo"
 
+import atkinsonBold from "url:~/assets/AtkinsonHyperlegible-Bold.ttf"
+import atkinsonBoldItalic from "url:~/assets/AtkinsonHyperlegible-BoldItalic.ttf"
+import atkinsonItalic from "url:~/assets/AtkinsonHyperlegible-Italic.ttf"
+import atkinsonRegular from "url:~/assets/AtkinsonHyperlegible-Regular.ttf"
+
 import type {
   PageStatePayload,
   PageStateResult,
@@ -25,18 +30,51 @@ const STYLE_ID = "croutons-sensory-style"
 const READING_ROOT_ID = "croutons-reading-root"
 const READING_STYLE_ID = "croutons-reading-style"
 
+const READING_FONT_FACE = `
+  @font-face {
+    font-family: "Atkinson Hyperlegible";
+    font-style: normal;
+    font-weight: 400;
+    src: url("${atkinsonRegular}") format("truetype");
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Atkinson Hyperlegible";
+    font-style: normal;
+    font-weight: 700;
+    src: url("${atkinsonBold}") format("truetype");
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Atkinson Hyperlegible";
+    font-style: italic;
+    font-weight: 400;
+    src: url("${atkinsonItalic}") format("truetype");
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Atkinson Hyperlegible";
+    font-style: italic;
+    font-weight: 700;
+    src: url("${atkinsonBoldItalic}") format("truetype");
+    font-display: swap;
+  }
+`
+
 function buildReadingModeCss(theme: ThemePreference): string {
   const dark = theme === "dark"
   const bg = dark ? "#13151c" : "#ebe6dc"
-  const fg = dark ? "#ebe7df" : "#1a1614"
+  const fg = dark ? "#f2efe8" : "#12100e"
   const borderSubtle = dark ? "rgba(235, 231, 223, 0.12)" : "rgba(26, 22, 20, 0.15)"
   const closeBorder = dark ? "rgba(235, 231, 223, 0.28)" : "rgba(26, 22, 20, 0.25)"
   const closeBg = dark ? "#1a1d26" : "#f4f0e8"
   const focusRing = dark ? "#9bdcff" : "#3d5a4a"
-  const link = dark ? "#6ecfae" : "#3d5a4a"
+  const link = dark ? "#7fe8c8" : "#2d4a3c"
+  const muted = dark ? "rgba(242, 239, 232, 0.72)" : "rgba(18, 16, 14, 0.68)"
   const scheme = dark ? "dark" : "light"
 
   return `
+    ${READING_FONT_FACE}
     html:has(#${READING_ROOT_ID}) {
       overflow: hidden !important;
       scrollbar-gutter: stable;
@@ -53,15 +91,17 @@ function buildReadingModeCss(theme: ThemePreference): string {
       color: ${fg};
       overflow: auto;
       overscroll-behavior: contain;
-      font-family: "Atkinson Hyperlegible", Georgia, serif;
+      font-family: "Atkinson Hyperlegible", system-ui, sans-serif;
+      font-size: 1rem;
       line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
     }
     #${READING_ROOT_ID} .croutons-reading-panel { max-width: 42rem; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
     #${READING_ROOT_ID} .croutons-reading-header {
       display: flex; justify-content: space-between; align-items: baseline;
       margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid ${borderSubtle};
     }
-    #${READING_ROOT_ID} .croutons-reading-brand { font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; margin: 0; opacity: 0.7; }
+    #${READING_ROOT_ID} .croutons-reading-brand { font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; margin: 0; color: ${muted} !important; }
     #${READING_ROOT_ID} .croutons-reading-close {
       font: inherit;
       cursor: pointer;
@@ -74,7 +114,45 @@ function buildReadingModeCss(theme: ThemePreference): string {
     #${READING_ROOT_ID} .croutons-reading-close:focus-visible {
       outline: 2px solid ${focusRing}; outline-offset: 2px;
     }
-    #${READING_ROOT_ID} .croutons-reading-title { font-family: "Fraunces", Georgia, serif; font-size: 1.75rem; font-weight: 600; margin: 0 0 1rem; }
+    #${READING_ROOT_ID} .croutons-reading-title {
+      font-family: "Atkinson Hyperlegible", system-ui, sans-serif;
+      font-size: 1.75rem;
+      font-weight: 700;
+      line-height: 1.25;
+      margin: 0 0 1rem;
+      color: ${fg} !important;
+    }
+    #${READING_ROOT_ID} .croutons-reading-content {
+      font-size: 1rem !important;
+      color: ${fg} !important;
+    }
+    #${READING_ROOT_ID} .croutons-reading-content * {
+      font-family: "Atkinson Hyperlegible", system-ui, sans-serif !important;
+    }
+    #${READING_ROOT_ID} .croutons-reading-content *:not(a) {
+      color: inherit !important;
+    }
+    #${READING_ROOT_ID} .croutons-reading-content a,
+    #${READING_ROOT_ID} .croutons-reading-content a * {
+      color: ${link} !important;
+    }
+    #${READING_ROOT_ID} .croutons-reading-content p,
+    #${READING_ROOT_ID} .croutons-reading-content li,
+    #${READING_ROOT_ID} .croutons-reading-content blockquote,
+    #${READING_ROOT_ID} .croutons-reading-content td,
+    #${READING_ROOT_ID} .croutons-reading-content th {
+      font-size: 1rem !important;
+      line-height: 1.65 !important;
+    }
+    #${READING_ROOT_ID} .croutons-reading-content h1 { font-size: 1.75rem !important; font-weight: 700 !important; }
+    #${READING_ROOT_ID} .croutons-reading-content h2 { font-size: 1.375rem !important; font-weight: 700 !important; }
+    #${READING_ROOT_ID} .croutons-reading-content h3 { font-size: 1.125rem !important; font-weight: 700 !important; }
+    #${READING_ROOT_ID} .croutons-reading-content h4 { font-size: 1rem !important; font-weight: 700 !important; }
+    #${READING_ROOT_ID} .croutons-reading-content pre,
+    #${READING_ROOT_ID} .croutons-reading-content code {
+      font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace !important;
+      font-size: 0.9375rem !important;
+    }
     #${READING_ROOT_ID} .croutons-reading-content p {
       margin: 0 0 1.5em;
     }
@@ -82,7 +160,11 @@ function buildReadingModeCss(theme: ThemePreference): string {
       margin-bottom: 0;
     }
     #${READING_ROOT_ID} .croutons-reading-content img { max-width: 100%; height: auto; }
-    #${READING_ROOT_ID} .croutons-reading-content a { color: ${link}; }
+    #${READING_ROOT_ID} .croutons-reading-content a {
+      color: ${link} !important;
+      text-decoration: underline;
+      text-underline-offset: 0.15em;
+    }
   `
 }
 
@@ -280,16 +362,6 @@ function applySettings(settings: SensorySettings) {
 
 function enterReadingMode() {
   if (document.getElementById(READING_ROOT_ID)) return
-
-  const fontId = "croutons-reading-fonts"
-  if (!document.getElementById(fontId)) {
-    const link = document.createElement("link")
-    link.id = fontId
-    link.rel = "stylesheet"
-    link.href =
-      "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Atkinson+Hyperlegible:wght@400;700&display=swap"
-    document.head.appendChild(link)
-  }
 
   const clone = document.cloneNode(true) as Document
   const article = new Readability(clone).parse()
