@@ -1,0 +1,79 @@
+@import url("https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,500;0,7..72,600;0,7..72,700;1,7..72,500&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap");
+
+/* Warm editorial lab: Literata + Atkinson Hyperlegible (accessibility-first body) */
+
+:root {
+  color-scheme: light;
+  --cr-bg: #f2efe8;
+  --cr-bg-raised: #faf7f0;
+  --cr-ink: #161411;
+  --cr-muted: rgba(22, 20, 17, 0.66);
+  --cr-accent: #206b52;
+  --cr-accent-hot: #c45138;
+  --cr-line: rgba(22, 20, 17, 0.11);
+  --cr-surface-2: rgba(255, 255, 255, 0.55);
+  --cr-surface-hover: rgba(255, 255, 253, 0.92);
+  --cr-accent-soft: rgba(32, 107, 82, 0.14);
+  --cr-accent-glow: rgba(32, 107, 82, 0.38);
+  --cr-focus: #0b5f6d;
+  --cr-danger: #a63c2c;
+  --cr-track: rgba(22, 20, 17, 0.08);
+  --cr-fill: linear-gradient(90deg, #206b52, #2a8a6a);
+  --font-display: "Literata", "Iowan Old Style", Georgia, serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --cr-radius: 12px;
+  --cr-radius-pill: 999px;
+  --cr-shadow: 0 12px 32px rgba(22, 20, 17, 0.08);
+}
+
+:root[data-croutons-theme="light"] {
+  color-scheme: light;
+  --cr-bg: #f2efe8;
+  --cr-bg-raised: #faf7f0;
+  --cr-ink: #161411;
+  --cr-muted: rgba(22, 20, 17, 0.66);
+  --cr-accent: #206b52;
+  --cr-accent-hot: #c45138;
+  --cr-line: rgba(22, 20, 17, 0.11);
+  --cr-surface-2: rgba(255, 255, 255, 0.55);
+  --cr-surface-hover: rgba(255, 255, 253, 0.92);
+  --cr-accent-soft: rgba(32, 107, 82, 0.14);
+  --cr-accent-glow: rgba(32, 107, 82, 0.38);
+  --cr-focus: #0b5f6d;
+  --cr-danger: #a63c2c;
+  --cr-track: rgba(22, 20, 17, 0.08);
+  --cr-fill: linear-gradient(90deg, #206b52, #2a8a6a);
+  --cr-shadow: 0 12px 32px rgba(22, 20, 17, 0.08);
+}
+
+:root[data-croutons-theme="dark"] {
+  color-scheme: dark;
+  --cr-bg: #13151c;
+  --cr-bg-raised: #1a1d26;
+  --cr-ink: #ebe7df;
+  --cr-muted: rgba(235, 231, 223, 0.66);
+  --cr-accent: #6ecfae;
+  --cr-accent-hot: #e8967a;
+  --cr-line: rgba(235, 231, 223, 0.12);
+  --cr-surface-2: rgba(255, 255, 255, 0.05);
+  --cr-surface-hover: rgba(255, 255, 255, 0.1);
+  --cr-accent-soft: rgba(110, 207, 174, 0.16);
+  --cr-accent-glow: rgba(110, 207, 174, 0.42);
+  --cr-focus: #9bdcff;
+  --cr-danger: #ff9a8c;
+  --cr-track: rgba(235, 231, 223, 0.1);
+  --cr-fill: linear-gradient(90deg, #4a9d82, #6ecfae);
+  --cr-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.croutons-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,3 +1,6 @@
+/** Popup/options UI only; ignored by page content scripts. */
+export type ThemePreference = "light" | "dark"
+
 export type SensorySettings = {
   reduceMotion: boolean
   contrastSoftness: number
@@ -5,6 +8,7 @@ export type SensorySettings = {
   hideOverlays: boolean
   /** 0–100: auto-apply stronger filters when score exceeds this */
   sensoryThreshold: number
+  themePreference: ThemePreference
 }
 
 export const DEFAULT_SETTINGS: SensorySettings = {
@@ -12,7 +16,8 @@ export const DEFAULT_SETTINGS: SensorySettings = {
   contrastSoftness: 36,
   blockAutoplay: true,
   hideOverlays: false,
-  sensoryThreshold: 45
+  sensoryThreshold: 45,
+  themePreference: "light"
 }
 
 export const STORAGE_KEY = "croutonsSensorySettings"
@@ -29,6 +34,12 @@ export function contrastSoftnessTier(
 }
 
 /** Merge stored values with defaults; migrate legacy `softenContrast` and strip it. */
+function coerceThemePreference(v: unknown): ThemePreference {
+  if (v === "dark") return "dark"
+  /* legacy "system" and unknown → light */
+  return "light"
+}
+
 export function normalizeSensorySettings(
   input: Partial<SensorySettings> & { softenContrast?: boolean }
 ): SensorySettings {
@@ -36,6 +47,7 @@ export function normalizeSensorySettings(
   if (input.softenContrast === false) {
     merged.contrastSoftness = 0
   }
+  merged.themePreference = coerceThemePreference(merged.themePreference)
   const { softenContrast: _legacy, ...rest } = merged as SensorySettings & {
     softenContrast?: boolean
   }

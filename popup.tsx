@@ -17,6 +17,7 @@ import {
   loadSettingsResilient,
   saveSettings
 } from "~lib/settings"
+import { useApplyDocumentTheme } from "~lib/theme"
 
 function IndexPopup() {
   const [settings, setSettings] = useState<SensorySettings>(DEFAULT_SETTINGS)
@@ -26,6 +27,8 @@ function IndexPopup() {
   const [pageUrl, setPageUrl] = useState<string>("")
   const [error, setError] = useState<string | null>(null)
   const [readingModeActive, setReadingModeActive] = useState(false)
+
+  useApplyDocumentTheme(settings.themePreference)
 
   const scorePercent = useMemo(() => {
     if (score == null) return "0%"
@@ -113,8 +116,6 @@ function IndexPopup() {
       const next = { ...settingsRef.current, ...partial }
       settingsRef.current = next
       setSettings(next)
-      // Serialize persist + tab apply so rapid slider input cannot reorder or
-      // overwrite storage; each enqueued step keeps its own snapshot of `next`.
       persistTailRef.current = persistTailRef.current
         .catch(() => {})
         .then(async () => {
@@ -148,57 +149,112 @@ function IndexPopup() {
     }
   }, [readingModeActive, refreshPageState])
 
+  const toggleDarkInterface = () => {
+    const cur = settingsRef.current.themePreference
+    void update({ themePreference: cur === "dark" ? "light" : "dark" })
+  }
+
   const openOptions = () => {
     void chrome.runtime.openOptionsPage()
   }
 
-  return (
-    <main className="croutons-root">
-      <header className="croutons-header">
-        <p className="croutons-kicker">Croutons</p>
-        <h1 className="croutons-title">Universal Sensory Filter</h1>
-        <p className="croutons-tagline">
-          Calmer contrast, quieter motion, and steadier media — on your terms.
-        </p>
-      </header>
+  const contrastSliderId = useId()
+  const darkSwitchId = useId()
 
-      <section className="croutons-score-card" aria-live="polite">
-        <div
-          className="croutons-score-ring"
-          style={{ ["--p" as string]: scorePercent }}>
-          <div className="croutons-score-ring-inner">
-            {score == null ? "—" : score}
+  const scoreAriaLabel =
+    score == null
+      ? "Sensory load score not available."
+      : `Sensory load ${score} out of 100.`
+
+  return (
+    <main className="croutons-root" id="croutons-popup-main">
+      <header className="croutons-header">
+        <div className="croutons-header-main">
+          <div className="croutons-header-text">
+            <p className="croutons-kicker">Croutons</p>
+            <h1 className="croutons-title">Universal Sensory Filter</h1>
+          </div>
+          <div
+            className="croutons-score-ring-wrap"
+            role="img"
+            aria-label={scoreAriaLabel}>
+            <div
+              className="croutons-score-ring"
+              style={{ ["--p" as string]: scorePercent }}>
+              <div className="croutons-score-ring-inner" aria-hidden="true">
+                {score == null ? "—" : score}
+              </div>
+            </div>
+            <span className="croutons-score-ring-label">Load</span>
           </div>
         </div>
-        <div className="croutons-score-meta">
-          <p className="croutons-score-label">Sensory load score</p>
-          {error ? (
-            <p className="croutons-score-error">{error}</p>
-          ) : (
-            <p className="croutons-score-url" title={pageUrl}>
-              {pageUrl || "This page"}
-            </p>
-          )}
-        </div>
-      </section>
+        <p className="croutons-tagline">
+          Calmer contrast, quieter motion, steadier media.
+        </p>
+        {error ? (
+          <p className="croutons-inline-status croutons-inline-status--error" role="status">
+            {error}
+          </p>
+        ) : (
+          <p className="croutons-inline-status" title={pageUrl}>
+            {pageUrl ? (
+              <>
+                <span className="croutons-sr-only">Page address: </span>
+                {pageUrl}
+              </>
+            ) : (
+              "This tab"
+            )}
+          </p>
+        )}
+      </header>
 
-      <section className="croutons-stack" aria-label="Filters">
+      <section className="croutons-stack" aria-label="Filter controls">
+        <ToggleRow
+          title="Reading mode"
+          hint="Article view with calmer typography"
+          checked={readingModeActive}
+          onChange={() => void toggleReadingMode()}
+        />
         <ToggleRow
           title="Reduce motion"
-          hint="Short-circuit animations & transitions"
+          hint="Short-circuit animations and transitions"
           checked={settings.reduceMotion}
           onChange={toggle("reduceMotion")}
         />
-        <div className="croutons-row croutons-slider-row">
+
+        <p className="croutons-mini-heading">Media</p>
+        <ToggleRow
+          title="Block autoplay"
+          hint="Pause auto-playing video and audio"
+          checked={settings.blockAutoplay}
+          onChange={toggle("blockAutoplay")}
+        />
+        <ToggleRow
+          title="Hide big overlays"
+          hint="Large fixed layers such as modals"
+          checked={settings.hideOverlays}
+          onChange={toggle("hideOverlays")}
+        />
+
+        <p className="croutons-mini-heading" id="croutons-comfort-heading">
+          Visual comfort
+        </p>
+        <div
+          className="croutons-slider-block"
+          aria-labelledby="croutons-comfort-heading">
           <div className="croutons-slider-head">
-            <span className="croutons-row-title">Contrast softening</span>
+            <label htmlFor={contrastSliderId} className="croutons-control-label">
+              Contrast softening
+            </label>
             <span
               className="croutons-softness-tier"
-              title={`${settings.contrastSoftness} / 100`}>
+              title={`${settings.contrastSoftness} out of 100`}>
               {contrastSoftnessTier(settings.contrastSoftness)}
             </span>
           </div>
           <input
+            id={contrastSliderId}
             className="croutons-slider"
             type="range"
             min={0}
@@ -207,35 +263,16 @@ function IndexPopup() {
             onChange={(e) =>
               void update({ contrastSoftness: Number(e.target.value) })
             }
-            aria-label="Contrast softening amount"
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={settings.contrastSoftness}
             aria-valuetext={contrastSoftnessTier(settings.contrastSoftness)}
           />
-          <div className="croutons-slider-scale" aria-hidden>
-            <span>Disabled</span>
+          <div className="croutons-slider-scale" aria-hidden="true">
+            <span>Off</span>
             <span>Softer</span>
           </div>
         </div>
-        <ToggleRow
-          title="Block autoplay"
-          hint="Pause auto-playing video & audio"
-          checked={settings.blockAutoplay}
-          onChange={toggle("blockAutoplay")}
-        />
-        <ToggleRow
-          title="Hide big overlays"
-          hint="Large fixed layers (modals, takeovers)"
-          checked={settings.hideOverlays}
-          onChange={toggle("hideOverlays")}
-        />
-        <ToggleRow
-          title="Reading mode"
-          hint="Article view with calmer typography on this tab"
-          checked={readingModeActive}
-          onChange={() => void toggleReadingMode()}
-        />
       </section>
 
       <div className="croutons-actions">
@@ -243,13 +280,32 @@ function IndexPopup() {
           type="button"
           className="croutons-btn croutons-btn-ghost"
           onClick={openOptions}>
-          Thresholds &amp; details
+          Open full settings
         </button>
       </div>
 
+      <div className="croutons-theme-row">
+        <label className="croutons-row-label" htmlFor={darkSwitchId}>
+          <span className="croutons-row-title">Dark interface</span>
+          <span className="croutons-row-hint">Easier in low light</span>
+        </label>
+        <span className="croutons-switch">
+          <input
+            id={darkSwitchId}
+            type="checkbox"
+            role="switch"
+            aria-checked={settings.themePreference === "dark"}
+            checked={settings.themePreference === "dark"}
+            onChange={toggleDarkInterface}
+          />
+          <span className="croutons-switch-track" aria-hidden="true">
+            <span className="croutons-switch-thumb" />
+          </span>
+        </span>
+      </div>
+
       <p className="croutons-foot">
-        Prototype: heuristics only. Tune auto-behavior and defaults on the
-        options page.
+        Prototype: heuristics only. Defaults and scoring on the settings page.
       </p>
     </main>
   )
@@ -264,23 +320,20 @@ function ToggleRow(props: {
   const id = useId()
   return (
     <div className="croutons-row">
-      <span className="croutons-row-label">
-        <span className="croutons-row-title" id={`${id}-label`}>
-          {props.title}
-        </span>
+      <label className="croutons-row-label" htmlFor={id}>
+        <span className="croutons-row-title">{props.title}</span>
         <span className="croutons-row-hint">{props.hint}</span>
-      </span>
+      </label>
       <span className="croutons-switch">
         <input
           id={id}
           type="checkbox"
           role="switch"
           aria-checked={props.checked}
-          aria-labelledby={`${id}-label`}
           checked={props.checked}
           onChange={props.onChange}
         />
-        <span className="croutons-switch-track" aria-hidden>
+        <span className="croutons-switch-track" aria-hidden="true">
           <span className="croutons-switch-thumb" />
         </span>
       </span>

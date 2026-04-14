@@ -11,6 +11,7 @@ import {
   STORAGE_KEY,
   normalizeSensorySettings,
   type SensorySettings,
+  type ThemePreference,
   loadSettings
 } from "~lib/settings"
 
@@ -22,6 +23,64 @@ export const config: PlasmoCSConfig = {
 
 const STYLE_ID = "croutons-sensory-style"
 const READING_ROOT_ID = "croutons-reading-root"
+const READING_STYLE_ID = "croutons-reading-style"
+
+function buildReadingModeCss(theme: ThemePreference): string {
+  const dark = theme === "dark"
+  const bg = dark ? "#13151c" : "#ebe6dc"
+  const fg = dark ? "#ebe7df" : "#1a1614"
+  const borderSubtle = dark ? "rgba(235, 231, 223, 0.12)" : "rgba(26, 22, 20, 0.15)"
+  const closeBorder = dark ? "rgba(235, 231, 223, 0.28)" : "rgba(26, 22, 20, 0.25)"
+  const closeBg = dark ? "#1a1d26" : "#f4f0e8"
+  const focusRing = dark ? "#9bdcff" : "#3d5a4a"
+  const link = dark ? "#6ecfae" : "#3d5a4a"
+  const scheme = dark ? "dark" : "light"
+
+  return `
+    #${READING_ROOT_ID} {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483646;
+      color-scheme: ${scheme};
+      background: ${bg};
+      color: ${fg};
+      overflow: auto;
+      font-family: "Atkinson Hyperlegible", Georgia, serif;
+      line-height: 1.65;
+    }
+    #${READING_ROOT_ID} .croutons-reading-panel { max-width: 42rem; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+    #${READING_ROOT_ID} .croutons-reading-header {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid ${borderSubtle};
+    }
+    #${READING_ROOT_ID} .croutons-reading-brand { font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; margin: 0; opacity: 0.7; }
+    #${READING_ROOT_ID} .croutons-reading-close {
+      font: inherit;
+      cursor: pointer;
+      border: 1px solid ${closeBorder};
+      background: ${closeBg};
+      color: inherit;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+    }
+    #${READING_ROOT_ID} .croutons-reading-close:focus-visible {
+      outline: 2px solid ${focusRing}; outline-offset: 2px;
+    }
+    #${READING_ROOT_ID} .croutons-reading-title { font-family: "Fraunces", Georgia, serif; font-size: 1.75rem; font-weight: 600; margin: 0 0 1rem; }
+    #${READING_ROOT_ID} .croutons-reading-content img { max-width: 100%; height: auto; }
+    #${READING_ROOT_ID} .croutons-reading-content a { color: ${link}; }
+  `
+}
+
+function refreshReadingModeTheme(settings: SensorySettings) {
+  const root = document.getElementById(READING_ROOT_ID)
+  if (!root) return
+  root.setAttribute("data-croutons-theme", settings.themePreference)
+  const styleEl = document.getElementById(READING_STYLE_ID) as HTMLStyleElement | null
+  if (styleEl) {
+    styleEl.textContent = buildReadingModeCss(settings.themePreference)
+  }
+}
 
 function isReadingModeActive(): boolean {
   return !!document.getElementById(READING_ROOT_ID)
@@ -199,6 +258,10 @@ function applySettings(settings: SensorySettings) {
     score >= settings.sensoryThreshold &&
     (settings.reduceMotion || settings.contrastSoftness > 0)
   document.documentElement.toggleAttribute("data-croutons-high-load", autoBoost)
+
+  if (isReadingModeActive()) {
+    refreshReadingModeTheme(settings)
+  }
 }
 
 function enterReadingMode() {
@@ -226,6 +289,7 @@ function enterReadingMode() {
 
   const root = document.createElement("div")
   root.id = READING_ROOT_ID
+  root.setAttribute("data-croutons-theme", currentSettings.themePreference)
   root.setAttribute("role", "dialog")
   root.setAttribute("aria-modal", "true")
   root.setAttribute("aria-label", "Reading mode")
@@ -249,39 +313,8 @@ function enterReadingMode() {
   contentEl.innerHTML = article.content
 
   const style = document.createElement("style")
-  style.textContent = `
-    #${READING_ROOT_ID} {
-      position: fixed;
-      inset: 0;
-      z-index: 2147483646;
-      background: #ebe6dc;
-      color: #1a1614;
-      overflow: auto;
-      font-family: "Atkinson Hyperlegible", Georgia, serif;
-      line-height: 1.65;
-    }
-    #${READING_ROOT_ID} .croutons-reading-panel { max-width: 42rem; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
-    #${READING_ROOT_ID} .croutons-reading-header {
-      display: flex; justify-content: space-between; align-items: baseline;
-      margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(26,22,20,0.15);
-    }
-    #${READING_ROOT_ID} .croutons-reading-brand { font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; margin: 0; opacity: 0.7; }
-    #${READING_ROOT_ID} .croutons-reading-close {
-      font: inherit;
-      cursor: pointer;
-      border: 1px solid rgba(26,22,20,0.25);
-      background: #f4f0e8;
-      color: inherit;
-      padding: 0.35rem 0.75rem;
-      border-radius: 999px;
-    }
-    #${READING_ROOT_ID} .croutons-reading-close:focus-visible {
-      outline: 2px solid #3d5a4a; outline-offset: 2px;
-    }
-    #${READING_ROOT_ID} .croutons-reading-title { font-family: "Fraunces", Georgia, serif; font-size: 1.75rem; font-weight: 600; margin: 0 0 1rem; }
-    #${READING_ROOT_ID} .croutons-reading-content img { max-width: 100%; height: auto; }
-    #${READING_ROOT_ID} .croutons-reading-content a { color: #3d5a4a; }
-  `
+  style.id = READING_STYLE_ID
+  style.textContent = buildReadingModeCss(currentSettings.themePreference)
   root.appendChild(style)
 
   document.documentElement.appendChild(root)
