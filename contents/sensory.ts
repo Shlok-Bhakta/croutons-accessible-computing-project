@@ -37,6 +37,13 @@ function buildReadingModeCss(theme: ThemePreference): string {
   const scheme = dark ? "dark" : "light"
 
   return `
+    html:has(#${READING_ROOT_ID}) {
+      overflow: hidden !important;
+      scrollbar-gutter: stable;
+    }
+    html:has(#${READING_ROOT_ID}) body {
+      overflow: hidden !important;
+    }
     #${READING_ROOT_ID} {
       position: fixed;
       inset: 0;
@@ -45,6 +52,7 @@ function buildReadingModeCss(theme: ThemePreference): string {
       background: ${bg};
       color: ${fg};
       overflow: auto;
+      overscroll-behavior: contain;
       font-family: "Atkinson Hyperlegible", Georgia, serif;
       line-height: 1.65;
     }
@@ -320,11 +328,11 @@ function enterReadingMode() {
   document.documentElement.appendChild(root)
 
   root.querySelector("#croutons-reading-close")?.addEventListener("click", () => {
-    root.remove()
+    exitReadingMode()
   })
 
   root.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") root.remove()
+    if (e.key === "Escape") exitReadingMode()
   })
 }
 
