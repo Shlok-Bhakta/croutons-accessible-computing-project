@@ -1,0 +1,130 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,500&family=Atkinson+Hyperlegible:wght@400;700&display=swap");
+
+:root {
+  --paper: #ebe6dc;
+  --ink: #1a1614;
+  --ink-muted: rgba(26, 22, 20, 0.62);
+  --sage: #3d5a4a;
+  --clay: #b85c38;
+  --radius: 16px;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--paper);
+  background-image:
+    radial-gradient(ellipse 80% 60% at 100% 0%, rgba(184, 92, 56, 0.08), transparent 50%),
+    radial-gradient(ellipse 70% 50% at 0% 100%, rgba(61, 90, 74, 0.1), transparent 55%);
+  min-height: 100vh;
+}
+
+.croutons-opt-wrap {
+  max-width: 38rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 3rem;
+}
+
+.croutons-opt-hero {
+  margin-bottom: 2rem;
+}
+
+.croutons-opt-kicker {
+  font-size: 0.7rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 0 0 0.35rem;
+}
+
+.croutons-opt-title {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  font-variation-settings: "opsz" 72;
+  margin: 0 0 0.5rem;
+  letter-spacing: -0.03em;
+}
+
+.croutons-opt-lede {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  max-width: 36ch;
+}
+
+.croutons-opt-card {
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(26, 22, 20, 0.08);
+  border-radius: var(--radius);
+  padding: 1.35rem 1.4rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 20px 50px rgba(26, 22, 20, 0.08);
+}
+
+.croutons-opt-card h2 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  margin: 0 0 0.35rem;
+}
+
+.croutons-opt-card p {
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+.croutons-opt-field {
+  margin-bottom: 1.1rem;
+}
+
+.croutons-opt-field:last-child {
+  margin-bottom: 0;
+}
+
+.croutons-opt-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.4rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.croutons-opt-value {
+  font-weight: 400;
+  color: var(--sage);
+  font-variant-numeric: tabular-nums;
+}
+
+.croutons-opt-slider {
+  width: 100%;
+  accent-color: var(--sage);
+}
+
+.croutons-opt-note {
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  margin: 0.4rem 0 0;
+}
+
+.croutons-opt-footer {
+  margin-top: 2rem;
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  border-top: 1px dashed rgba(26, 22, 20, 0.12);
+  padding-top: 1rem;
+}
+
+.croutons-opt-footer a {
+  color: var(--sage);
+}
