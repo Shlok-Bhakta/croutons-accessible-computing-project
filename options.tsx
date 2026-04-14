@@ -1,28 +1,39 @@
 import "./options.css"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import {
   DEFAULT_SETTINGS,
+  contrastSoftnessTier,
   type SensorySettings,
-  loadSettings,
+  loadSettingsResilient,
   saveSettings
 } from "~lib/settings"
 
 export default function OptionsPage() {
   const [settings, setSettings] = useState<SensorySettings>(DEFAULT_SETTINGS)
-  const [loaded, setLoaded] = useState(false)
+  const settingsRef = useRef<SensorySettings>(DEFAULT_SETTINGS)
+  const persistTailRef = useRef(Promise.resolve())
+  useEffect(() => {
+    settingsRef.current = settings
+  }, [settings])
 
   useEffect(() => {
-    void loadSettings().then((s) => {
+    void (async () => {
+      const s = await loadSettingsResilient()
+      settingsRef.current = s
       setSettings(s)
-      setLoaded(true)
-    })
+    })()
   }, [])
 
-  const persist = async (next: SensorySettings) => {
+  const persist = (next: SensorySettings) => {
+    settingsRef.current = next
     setSettings(next)
-    await saveSettings(next)
+    persistTailRef.current = persistTailRef.current
+      .catch(() => {})
+      .then(async () => {
+        await saveSettings(next)
+      })
   }
 
   return (
@@ -52,11 +63,10 @@ export default function OptionsPage() {
             type="range"
             min={0}
             max={100}
-            disabled={!loaded}
             value={settings.sensoryThreshold}
             onChange={(e) =>
               void persist({
-                ...settings,
+                ...settingsRef.current,
                 sensoryThreshold: Number(e.target.value)
               })
             }
@@ -79,24 +89,33 @@ export default function OptionsPage() {
         </p>
         <div className="croutons-opt-field">
           <div className="croutons-opt-label">
-            <span>Contrast softness</span>
-            <span className="croutons-opt-value">{settings.contrastSoftness}</span>
+            <span>Default contrast softening</span>
+            <span className="croutons-opt-value">
+              {contrastSoftnessTier(settings.contrastSoftness)}
+            </span>
           </div>
           <input
             className="croutons-opt-slider"
             type="range"
             min={0}
             max={100}
-            disabled={!loaded}
             value={settings.contrastSoftness}
             onChange={(e) =>
               void persist({
-                ...settings,
+                ...settingsRef.current,
                 contrastSoftness: Number(e.target.value)
               })
             }
-            aria-label="Default contrast softness"
+            aria-label="Default contrast softening amount"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={settings.contrastSoftness}
+            aria-valuetext={contrastSoftnessTier(settings.contrastSoftness)}
           />
+          <p className="croutons-opt-note">
+            All the way left turns contrast softening off (Disabled). Higher applies
+            a softer, lower-contrast look (Mild / Moderate / Strong).
+          </p>
         </div>
       </section>
 

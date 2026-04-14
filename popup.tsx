@@ -1,21 +1,31 @@
 import "./popup.css"
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState
+} from "react"
 
 import type { PageStateResult } from "~lib/messages"
 import {
   DEFAULT_SETTINGS,
+  contrastSoftnessTier,
   type SensorySettings,
-  loadSettings,
+  loadSettingsResilient,
   saveSettings
 } from "~lib/settings"
 
 function IndexPopup() {
   const [settings, setSettings] = useState<SensorySettings>(DEFAULT_SETTINGS)
+  const settingsRef = useRef<SensorySettings>(DEFAULT_SETTINGS)
+  const persistTailRef = useRef(Promise.resolve())
   const [score, setScore] = useState<number | null>(null)
   const [pageUrl, setPageUrl] = useState<string>("")
   const [error, setError] = useState<string | null>(null)
-  const [ready, setReady] = useState(false)
+  const [readingModeActive, setReadingModeActive] = useState(false)
 
   const scorePercent = useMemo(() => {
     if (score == null) return "0%"
@@ -28,6 +38,7 @@ function IndexPopup() {
       setError("No active tab.")
       setScore(null)
       setPageUrl("")
+      setReadingModeActive(false)
       return
     }
     setPageUrl(tab.url || "")
@@ -40,6 +51,7 @@ function IndexPopup() {
     ) {
       setError("Open a regular website to filter and score sensory load.")
       setScore(null)
+      setReadingModeActive(false)
       return
     }
     try {
@@ -48,27 +60,38 @@ function IndexPopup() {
       })) as PageStateResult
       if (res?.ok) {
         setScore(res.payload.score)
+        setReadingModeActive(res.payload.readingMode)
         setError(null)
       } else {
         setError(res?.error || "Could not reach this page.")
         setScore(null)
+        setReadingModeActive(false)
       }
     } catch {
       setError("Reload the page after installing the extension, then try again.")
       setScore(null)
+      setReadingModeActive(false)
     }
   }, [])
 
   useEffect(() => {
+    settingsRef.current = settings
+  }, [settings])
+
+  useEffect(() => {
     void (async () => {
-      const s = await loadSettings()
+      const s = await loadSettingsResilient()
+      settingsRef.current = s
       setSettings(s)
-      setReady(true)
-      await refreshPageState()
+      try {
+        await refreshPageState()
+      } catch {
+        /* tab may be restricted; controls stay usable */
+      }
     })()
   }, [refreshPageState])
 
-  const pushToTab = async (next: SensorySettings) => {
+  const pushToTab = useCallback(async (next: SensorySettings) => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!tab?.id) return
     try {
@@ -76,35 +99,54 @@ function IndexPopup() {
         type: "APPLY_SETTINGS",
         settings: next
       })) as PageStateResult
-      if (res?.ok) setScore(res.payload.score)
+      if (res?.ok) {
+        setScore(res.payload.score)
+        setReadingModeActive(res.payload.readingMode)
+      }
     } catch {
       /* restricted pages */
     }
-  }
+  }, [])
 
-  const update = async (partial: Partial<SensorySettings>) => {
-    const next = { ...settings, ...partial }
-    setSettings(next)
-    await saveSettings(next)
-    await pushToTab(next)
-    await refreshPageState()
-  }
+  const update = useCallback(
+    async (partial: Partial<SensorySettings>) => {
+      const next = { ...settingsRef.current, ...partial }
+      settingsRef.current = next
+      setSettings(next)
+      // Serialize persist + tab apply so rapid slider input cannot reorder or
+      // overwrite storage; each enqueued step keeps its own snapshot of `next`.
+      persistTailRef.current = persistTailRef.current
+        .catch(() => {})
+        .then(async () => {
+          await saveSettings(next)
+          await pushToTab(next)
+          await refreshPageState()
+        })
+      return persistTailRef.current
+    },
+    [pushToTab, refreshPageState]
+  )
 
   const toggle = (key: keyof SensorySettings) => async () => {
-    const cur = settings[key]
+    const cur = settingsRef.current[key]
     if (typeof cur !== "boolean") return
     await update({ [key]: !cur } as Partial<SensorySettings>)
   }
 
-  const readingMode = async () => {
+  const toggleReadingMode = useCallback(async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!tab?.id) return
+    const next = !readingModeActive
     try {
-      await chrome.tabs.sendMessage(tab.id, { type: "READING_MODE" })
+      await chrome.tabs.sendMessage(tab.id, {
+        type: "SET_READING_MODE",
+        enabled: next
+      })
+      await refreshPageState()
     } catch {
       setError("Reading mode needs a normal webpage tab.")
     }
-  }
+  }, [readingModeActive, refreshPageState])
 
   const openOptions = () => {
     void chrome.runtime.openOptionsPage()
@@ -145,21 +187,15 @@ function IndexPopup() {
           title="Reduce motion"
           hint="Short-circuit animations & transitions"
           checked={settings.reduceMotion}
-          disabled={!ready}
           onChange={toggle("reduceMotion")}
-        />
-        <ToggleRow
-          title="Soften contrast"
-          hint="Gentler contrast across the page"
-          checked={settings.softenContrast}
-          disabled={!ready}
-          onChange={toggle("softenContrast")}
         />
         <div className="croutons-row croutons-slider-row">
           <div className="croutons-slider-head">
-            <span className="croutons-row-title">Softness</span>
-            <span className="croutons-row-hint" style={{ maxWidth: "none" }}>
-              {settings.contrastSoftness}
+            <span className="croutons-row-title">Contrast softening</span>
+            <span
+              className="croutons-softness-tier"
+              title={`${settings.contrastSoftness} / 100`}>
+              {contrastSoftnessTier(settings.contrastSoftness)}
             </span>
           </div>
           <input
@@ -168,37 +204,41 @@ function IndexPopup() {
             min={0}
             max={100}
             value={settings.contrastSoftness}
-            disabled={!ready || !settings.softenContrast}
             onChange={(e) =>
               void update({ contrastSoftness: Number(e.target.value) })
             }
-            aria-label="Contrast softness"
+            aria-label="Contrast softening amount"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={settings.contrastSoftness}
+            aria-valuetext={contrastSoftnessTier(settings.contrastSoftness)}
           />
+          <div className="croutons-slider-scale" aria-hidden>
+            <span>Disabled</span>
+            <span>Softer</span>
+          </div>
         </div>
         <ToggleRow
           title="Block autoplay"
           hint="Pause auto-playing video & audio"
           checked={settings.blockAutoplay}
-          disabled={!ready}
           onChange={toggle("blockAutoplay")}
         />
         <ToggleRow
           title="Hide big overlays"
           hint="Large fixed layers (modals, takeovers)"
           checked={settings.hideOverlays}
-          disabled={!ready}
           onChange={toggle("hideOverlays")}
+        />
+        <ToggleRow
+          title="Reading mode"
+          hint="Article view with calmer typography on this tab"
+          checked={readingModeActive}
+          onChange={() => void toggleReadingMode()}
         />
       </section>
 
       <div className="croutons-actions">
-        <button
-          type="button"
-          className="croutons-btn croutons-btn-primary"
-          onClick={() => void readingMode()}
-          disabled={!ready}>
-          Reading mode
-        </button>
         <button
           type="button"
           className="croutons-btn croutons-btn-ghost"
@@ -219,7 +259,6 @@ function ToggleRow(props: {
   title: string
   hint: string
   checked: boolean
-  disabled?: boolean
   onChange: () => void
 }) {
   const id = useId()
@@ -239,7 +278,6 @@ function ToggleRow(props: {
           aria-checked={props.checked}
           aria-labelledby={`${id}-label`}
           checked={props.checked}
-          disabled={props.disabled}
           onChange={props.onChange}
         />
         <span className="croutons-switch-track" aria-hidden>

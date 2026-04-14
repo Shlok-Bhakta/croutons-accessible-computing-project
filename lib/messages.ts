@@ -4,13 +4,14 @@ export type PageStatePayload = {
   score: number
   url: string
   applied: boolean
+  readingMode: boolean
 }
 
 /** Messages sent from popup/options to the active tab content script */
 export type ToContentMessage =
   | { type: "GET_PAGE_STATE" }
   | { type: "APPLY_SETTINGS"; settings: SensorySettings }
-  | { type: "READING_MODE" }
+  | { type: "SET_READING_MODE"; enabled: boolean }
 
 /** Response from content script for GET_PAGE_STATE */
 export type PageStateResponse = {

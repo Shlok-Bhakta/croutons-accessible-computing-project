@@ -188,9 +188,26 @@ body {
   margin-bottom: 0.35rem;
 }
 
+.croutons-softness-tier {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sage);
+}
+
 .croutons-slider {
   width: 100%;
   accent-color: var(--sage);
+}
+
+.croutons-slider-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  font-size: 0.62rem;
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
 }
 
 .croutons-switch {
@@ -200,16 +217,26 @@ body {
   flex-shrink: 0;
 }
 
+/* Invisible input must cover the full switch so clicks hit the checkbox (0×0 had no hit target). */
 .croutons-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.croutons-switch input:disabled {
+  cursor: not-allowed;
 }
 
 .croutons-switch-track {
   position: absolute;
   inset: 0;
+  pointer-events: none;
   background: rgba(26, 22, 20, 0.12);
   border-radius: 999px;
   transition: background 0.2s ease;

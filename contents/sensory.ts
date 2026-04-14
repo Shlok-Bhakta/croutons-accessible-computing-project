@@ -1,10 +1,15 @@
 import { Readability } from "@mozilla/readability"
 import type { PlasmoCSConfig } from "plasmo"
 
-import type { PageStateResult, ToContentMessage } from "~lib/messages"
+import type {
+  PageStatePayload,
+  PageStateResult,
+  ToContentMessage
+} from "~lib/messages"
 import {
   DEFAULT_SETTINGS,
   STORAGE_KEY,
+  normalizeSensorySettings,
   type SensorySettings,
   loadSettings
 } from "~lib/settings"
@@ -17,6 +22,14 @@ export const config: PlasmoCSConfig = {
 
 const STYLE_ID = "croutons-sensory-style"
 const READING_ROOT_ID = "croutons-reading-root"
+
+function isReadingModeActive(): boolean {
+  return !!document.getElementById(READING_ROOT_ID)
+}
+
+function exitReadingMode() {
+  document.getElementById(READING_ROOT_ID)?.remove()
+}
 
 let currentSettings: SensorySettings = { ...DEFAULT_SETTINGS }
 let mediaObserver: MutationObserver | null = null
@@ -41,9 +54,12 @@ function computeSensoryScore(): number {
   return Math.min(100, Math.round(s))
 }
 
+/** Maps 0–100 softness to CSS contrast(): higher softness = lower contrast. */
 function contrastFromSoftness(softness: number): number {
   const t = Math.max(0, Math.min(100, softness)) / 100
-  return 0.58 + (1 - t) * 0.42
+  // Cap how far we pull contrast down so pages stay readable (was 0.58 at max).
+  const minContrast = 0.76
+  return minContrast + (1 - t) * (1 - minContrast)
 }
 
 function buildCss(settings: SensorySettings): string {
@@ -59,7 +75,7 @@ function buildCss(settings: SensorySettings): string {
   `
     : ""
 
-  const contrastBlock = settings.softenContrast
+  const contrastBlock = settings.contrastSoftness > 0
     ? `
     html {
       filter: contrast(${contrast}) saturate(0.92);
@@ -181,7 +197,7 @@ function applySettings(settings: SensorySettings) {
   const score = computeSensoryScore()
   const autoBoost =
     score >= settings.sensoryThreshold &&
-    (settings.reduceMotion || settings.softenContrast)
+    (settings.reduceMotion || settings.contrastSoftness > 0)
   document.documentElement.toggleAttribute("data-croutons-high-load", autoBoost)
 }
 
@@ -284,42 +300,44 @@ void loadSettings().then((s) => applySettings(s))
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "sync") return
   if (!changes[STORAGE_KEY]) return
-  const next = changes[STORAGE_KEY].newValue as SensorySettings | undefined
-  if (next) applySettings({ ...DEFAULT_SETTINGS, ...next })
+  const next = changes[STORAGE_KEY].newValue as
+    | (Partial<SensorySettings> & { softenContrast?: boolean })
+    | undefined
+  if (next) applySettings(normalizeSensorySettings(next))
 })
+
+function pageStatePayload(): PageStatePayload {
+  return {
+    score: computeSensoryScore(),
+    url: location.href,
+    applied: true,
+    readingMode: isReadingModeActive()
+  }
+}
 
 chrome.runtime.onMessage.addListener(
   (msg: ToContentMessage, _sender, sendResponse: (r: PageStateResult) => void) => {
     if (msg?.type === "GET_PAGE_STATE") {
-      const payload = {
-        score: computeSensoryScore(),
-        url: location.href,
-        applied: true
-      }
-      sendResponse({ ok: true, payload })
+      sendResponse({ ok: true, payload: pageStatePayload() })
       return true
     }
     if (msg?.type === "APPLY_SETTINGS") {
-      applySettings(msg.settings)
+      applySettings(normalizeSensorySettings(msg.settings))
       sendResponse({
         ok: true,
-        payload: {
-          score: computeSensoryScore(),
-          url: location.href,
-          applied: true
-        }
+        payload: pageStatePayload()
       })
       return true
     }
-    if (msg?.type === "READING_MODE") {
-      enterReadingMode()
+    if (msg?.type === "SET_READING_MODE") {
+      if (msg.enabled) {
+        enterReadingMode()
+      } else {
+        exitReadingMode()
+      }
       sendResponse({
         ok: true,
-        payload: {
-          score: computeSensoryScore(),
-          url: location.href,
-          applied: true
-        }
+        payload: pageStatePayload()
       })
       return true
     }
