@@ -303,10 +303,6 @@ function IndexPopup() {
           </span>
         </span>
       </div>
-
-      <p className="croutons-foot">
-        Prototype: heuristics only. Defaults and scoring on the settings page.
-      </p>
     </main>
   )
 }

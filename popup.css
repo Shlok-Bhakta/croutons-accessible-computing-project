@@ -355,15 +355,6 @@ body {
   outline-offset: 2px;
 }
 
-.croutons-foot {
-  margin-top: 0.55rem;
-  padding-top: 0.55rem;
-  border-top: 1px dashed var(--cr-line);
-  font-size: 0.65rem;
-  color: var(--cr-muted);
-  line-height: 1.4;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .croutons-btn,
   .croutons-switch-thumb,
