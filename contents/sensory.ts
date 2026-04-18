@@ -30,6 +30,7 @@ const STYLE_ID = "croutons-sensory-style"
 const READING_ROOT_ID = "croutons-reading-root"
 const READING_STYLE_ID = "croutons-reading-style"
 const AUTO_GRAYSCALE_THRESHOLD = 60
+const AUTO_GRAYSCALE_RECHECK_MS = 4000
 
 const READING_FONT_FACE = `
   @font-face {
@@ -190,7 +191,9 @@ function exitReadingMode() {
 let currentSettings: SensorySettings = { ...DEFAULT_SETTINGS }
 let mediaObserver: MutationObserver | null = null
 let overlayTimer: ReturnType<typeof setInterval> | null = null
+let autoGrayscaleTimer: ReturnType<typeof setInterval> | null = null
 let autoGrayscaleActive = false
+let autoGrayscaleSuppressedByUser = false
 
 type Rgba = { r: number; g: number; b: number; a: number }
 
@@ -511,7 +514,7 @@ function buildCss(settings: SensorySettings): string {
   if (settings.contrastSoftness > 0) {
     filterParts.push(`contrast(${contrast}) saturate(0.92)`)
   }
-  if (settings.grayscale || autoGrayscaleActive) {
+  if (settings.grayscale || (autoGrayscaleActive && !autoGrayscaleSuppressedByUser)) {
     filterParts.push("grayscale(1)")
   }
   const contrastBlock =
@@ -618,6 +621,29 @@ function stopOverlayLoop() {
   }
 }
 
+function stopAutoGrayscaleLoop() {
+  if (autoGrayscaleTimer) {
+    clearInterval(autoGrayscaleTimer)
+    autoGrayscaleTimer = null
+  }
+}
+
+function recomputeAutoGrayscale(injectIfChanged: boolean) {
+  const nextAuto = computeColorLoadScore() > AUTO_GRAYSCALE_THRESHOLD
+  if (nextAuto === autoGrayscaleActive) return
+  autoGrayscaleActive = nextAuto
+  if (injectIfChanged) {
+    injectStyle(buildCss(currentSettings))
+  }
+}
+
+function startAutoGrayscaleLoop() {
+  stopAutoGrayscaleLoop()
+  autoGrayscaleTimer = setInterval(() => {
+    recomputeAutoGrayscale(true)
+  }, AUTO_GRAYSCALE_RECHECK_MS)
+}
+
 function startOverlayLoop() {
   stopOverlayLoop()
   if (!currentSettings.hideOverlays) return
@@ -626,15 +652,22 @@ function startOverlayLoop() {
 }
 
 function applySettings(settings: SensorySettings) {
+  // Manual toggle should override auto-gray behavior.
+  if (settings.grayscale) {
+    autoGrayscaleSuppressedByUser = false
+  } else if (currentSettings.grayscale && !settings.grayscale) {
+    autoGrayscaleSuppressedByUser = true
+  }
+
   currentSettings = settings
-  const loadBeforeAuto = computeOverallLoadScore(settings)
-  autoGrayscaleActive = loadBeforeAuto.colorLoadScore > AUTO_GRAYSCALE_THRESHOLD
+  recomputeAutoGrayscale(false)
   const load = computeOverallLoadScore(settings)
   clearOverlayMarks()
   injectStyle(buildCss(settings))
   blockAutoplayOn()
   attachMediaObserver()
   startOverlayLoop()
+  startAutoGrayscaleLoop()
   if (settings.hideOverlays) markOverlays()
 
   const score = load.score
