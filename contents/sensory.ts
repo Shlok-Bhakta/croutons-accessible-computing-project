@@ -29,7 +29,6 @@ export const config: PlasmoCSConfig = {
 const STYLE_ID = "croutons-sensory-style"
 const READING_ROOT_ID = "croutons-reading-root"
 const READING_STYLE_ID = "croutons-reading-style"
-const AUTO_GRAYSCALE_THRESHOLD = 60
 const AUTO_GRAYSCALE_RECHECK_MS = 4000
 
 const READING_FONT_FACE = `
@@ -424,7 +423,9 @@ function computeOverallLoadScore(settings: SensorySettings): {
   if (settings.blockAutoplay) mitigation += 7
   if (settings.hideOverlays) mitigation += 6
   mitigation += Math.round((settings.contrastSoftness / 100) * 10)
-  if (settings.grayscale || autoGrayscaleActive) mitigation += 10
+  if (settings.grayscale || (autoGrayscaleActive && !autoGrayscaleSuppressedByUser)) {
+    mitigation += 10
+  }
   if (isReadingModeActive()) mitigation += 9
 
   const score = Math.round(clamp100(baseScore - mitigation))
@@ -514,7 +515,12 @@ function buildCss(settings: SensorySettings): string {
   if (settings.contrastSoftness > 0) {
     filterParts.push(`contrast(${contrast}) saturate(0.92)`)
   }
-  if (settings.grayscale || (autoGrayscaleActive && !autoGrayscaleSuppressedByUser)) {
+  if (
+    settings.grayscale ||
+    (settings.autoGrayscaleEnabled &&
+      autoGrayscaleActive &&
+      !autoGrayscaleSuppressedByUser)
+  ) {
     filterParts.push("grayscale(1)")
   }
   const contrastBlock =
@@ -629,7 +635,22 @@ function stopAutoGrayscaleLoop() {
 }
 
 function recomputeAutoGrayscale(injectIfChanged: boolean) {
-  const nextAuto = computeColorLoadScore() > AUTO_GRAYSCALE_THRESHOLD
+  if (!currentSettings.autoGrayscaleEnabled) {
+    if (!autoGrayscaleActive) return
+    autoGrayscaleActive = false
+    if (injectIfChanged) {
+      injectStyle(buildCss(currentSettings))
+    }
+    return
+  }
+  const nextAuto = computeColorLoadScore() >= currentSettings.autoGrayscaleThreshold
+
+  // If page load drops below threshold, release manual suppression so
+  // future threshold crossings can auto-enable grayscale again.
+  if (!nextAuto && autoGrayscaleSuppressedByUser) {
+    autoGrayscaleSuppressedByUser = false
+  }
+
   if (nextAuto === autoGrayscaleActive) return
   autoGrayscaleActive = nextAuto
   if (injectIfChanged) {
@@ -652,14 +673,26 @@ function startOverlayLoop() {
 }
 
 function applySettings(settings: SensorySettings) {
+  const thresholdChanged =
+    settings.autoGrayscaleThreshold !== currentSettings.autoGrayscaleThreshold
+  const autoToggleChanged =
+    settings.autoGrayscaleEnabled !== currentSettings.autoGrayscaleEnabled
+
   // Manual toggle should override auto-gray behavior.
   if (settings.grayscale) {
     autoGrayscaleSuppressedByUser = false
   } else if (currentSettings.grayscale && !settings.grayscale) {
     autoGrayscaleSuppressedByUser = true
   }
+  // If user changes auto settings, treat that as a fresh auto-grayscale intent.
+  if (thresholdChanged || autoToggleChanged) {
+    autoGrayscaleSuppressedByUser = false
+  }
 
   currentSettings = settings
+  if (!settings.autoGrayscaleEnabled) {
+    autoGrayscaleSuppressedByUser = false
+  }
   recomputeAutoGrayscale(false)
   const load = computeOverallLoadScore(settings)
   clearOverlayMarks()

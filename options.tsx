@@ -17,6 +17,7 @@ export default function OptionsPage() {
   const persistTailRef = useRef(Promise.resolve())
   const thresholdId = useId()
   const contrastId = useId()
+  const autoGrayThresholdId = useId()
   const darkSwitchId = useId()
 
   useApplyDocumentTheme(settings.themePreference)
@@ -104,31 +105,62 @@ export default function OptionsPage() {
                 softer, lower-contrast look (mild, moderate, or strong).
               </p>
             </div>
-            <div className="croutons-opt-field croutons-opt-field--row">
-              <label className="croutons-opt-theme-label" htmlFor="croutons-grayscale">
-                <span className="croutons-opt-theme-title">Grayscale pages</span>
-                <span className="croutons-opt-theme-hint">
-                  Black and white rendering to lower color stimulation
+            <div className="croutons-opt-field">
+              <div className="croutons-opt-field croutons-opt-field--row">
+                <label className="croutons-opt-theme-label" htmlFor="croutons-auto-grayscale">
+                  <span className="croutons-opt-theme-title">Auto grayscale</span>
+                  <span className="croutons-opt-theme-hint">
+                    Automatically enable grayscale when color load is high
+                  </span>
+                </label>
+                <span className="croutons-opt-switch">
+                  <input
+                    id="croutons-auto-grayscale"
+                    type="checkbox"
+                    role="switch"
+                    aria-checked={settings.autoGrayscaleEnabled}
+                    checked={settings.autoGrayscaleEnabled}
+                    onChange={() =>
+                      void persist({
+                        ...settingsRef.current,
+                        autoGrayscaleEnabled: !settingsRef.current.autoGrayscaleEnabled
+                      })
+                    }
+                  />
+                  <span className="croutons-opt-switch-track" aria-hidden="true">
+                    <span className="croutons-opt-switch-thumb" />
+                  </span>
                 </span>
-              </label>
-              <span className="croutons-opt-switch">
-                <input
-                  id="croutons-grayscale"
-                  type="checkbox"
-                  role="switch"
-                  aria-checked={settings.grayscale}
-                  checked={settings.grayscale}
-                  onChange={() =>
-                    void persist({
-                      ...settingsRef.current,
-                      grayscale: !settingsRef.current.grayscale
-                    })
-                  }
-                />
-                <span className="croutons-opt-switch-track" aria-hidden="true">
-                  <span className="croutons-opt-switch-thumb" />
+              </div>
+              <div className="croutons-opt-label">
+                <label htmlFor={autoGrayThresholdId}>Auto grayscale threshold</label>
+                <span className="croutons-opt-value" aria-live="polite">
+                  {settings.autoGrayscaleThreshold}
                 </span>
-              </span>
+              </div>
+              <input
+                id={autoGrayThresholdId}
+                className="croutons-opt-slider"
+                type="range"
+                min={0}
+                max={100}
+                value={settings.autoGrayscaleThreshold}
+                onChange={(e) =>
+                  void persist({
+                    ...settingsRef.current,
+                    autoGrayscaleThreshold: Number(e.target.value)
+                  })
+                }
+                disabled={!settings.autoGrayscaleEnabled}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={settings.autoGrayscaleThreshold}
+                aria-label="Auto grayscale threshold"
+              />
+              <p className="croutons-opt-note">
+                If color load rises above this number, grayscale turns on automatically
+                unless manually disabled in the popup.
+              </p>
             </div>
           </section>
 
