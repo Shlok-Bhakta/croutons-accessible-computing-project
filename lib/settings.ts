@@ -4,6 +4,8 @@ export type ThemePreference = "light" | "dark"
 export type SensorySettings = {
   reduceMotion: boolean
   contrastSoftness: number
+  /** Full grayscale page rendering to reduce color stimulation. */
+  grayscale: boolean
   blockAutoplay: boolean
   hideOverlays: boolean
   /** 0–100: auto-apply stronger filters when score exceeds this */
@@ -14,6 +16,7 @@ export type SensorySettings = {
 export const DEFAULT_SETTINGS: SensorySettings = {
   reduceMotion: true,
   contrastSoftness: 36,
+  grayscale: false,
   blockAutoplay: true,
   hideOverlays: false,
   sensoryThreshold: 45,

@@ -1,6 +1,6 @@
 # Universal Sensory Filter (Croutons)
 
-A Chrome extension that makes busy pages easier to process: **softer contrast**, **less motion**, **no autoplay**, optional **overlay reduction**, and **reading mode** powered by Mozilla Readability. Everything runs **in the browser**—no accounts and no server.
+A Chrome extension that makes busy pages easier to process: **softer contrast**, optional **grayscale**, **less motion**, **no autoplay**, optional **overlay reduction**, and **reading mode** powered by Mozilla Readability. Everything runs **in the browser**—no accounts and no server.
 
 Built with [Plasmo](https://docs.plasmo.com/), React, and TypeScript.
 
@@ -25,10 +25,15 @@ Built with [Plasmo](https://docs.plasmo.com/), React, and TypeScript.
 ## Features
 
 - **Contrast & motion** — Reduce visual harshness and optional animation for a calmer screen.
+- **Grayscale mode** — Convert the page to black and white for lower color stimulation.
 - **Autoplay control** — Block autoplaying media where the page allows it.
 - **Overlays** — Optionally hide large fixed overlays that compete for attention.
 - **Reading mode** — Strip clutter and focus on article text (Mozilla Readability).
-- **Sensory load score** — A quick signal of how “busy” the current page feels, with deeper settings under **Thresholds & details**.
+- **Weighted cognitive load score** — Compute a page load score from weighted page signals (motion, autoplay, media density, overlays, and color complexity).
+- **Color load analysis** — Analyze on-page color characteristics (contrast harshness, saturation, hue spread, and color fragmentation) and include them in the total load score.
+- **Adaptive recommendation engine** — Recommend useful filters based on current load.
+- **Auto grayscale trigger** — Automatically enables grayscale when color load exceeds 60.
+- **Before/after score reduction** — Show baseline load, filtered load, and how much the extension reduced.
 
 Restricted URLs (`chrome://`, the Chrome Web Store, and similar) do not run content scripts; test on normal `https://` pages.
 
@@ -55,7 +60,7 @@ npm run package
 ## Suggested workflow
 
 1. Open a content-heavy site (news, shopping, feeds).
-2. Open the toolbar popup: review the **Sensory load score** and adjust toggles.
+2. Open the toolbar popup: review the **weighted load score**, **color load**, and **reduction** (`base → current`) while adjusting toggles.
 3. On articles, try **Reading mode**.
 4. Open **Thresholds & details** for the full options page.
 

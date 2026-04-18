@@ -104,6 +104,32 @@ export default function OptionsPage() {
                 softer, lower-contrast look (mild, moderate, or strong).
               </p>
             </div>
+            <div className="croutons-opt-field croutons-opt-field--row">
+              <label className="croutons-opt-theme-label" htmlFor="croutons-grayscale">
+                <span className="croutons-opt-theme-title">Grayscale pages</span>
+                <span className="croutons-opt-theme-hint">
+                  Black and white rendering to lower color stimulation
+                </span>
+              </label>
+              <span className="croutons-opt-switch">
+                <input
+                  id="croutons-grayscale"
+                  type="checkbox"
+                  role="switch"
+                  aria-checked={settings.grayscale}
+                  checked={settings.grayscale}
+                  onChange={() =>
+                    void persist({
+                      ...settingsRef.current,
+                      grayscale: !settingsRef.current.grayscale
+                    })
+                  }
+                />
+                <span className="croutons-opt-switch-track" aria-hidden="true">
+                  <span className="croutons-opt-switch-thumb" />
+                </span>
+              </span>
+            </div>
           </section>
 
           <section

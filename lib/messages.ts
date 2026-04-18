@@ -2,6 +2,11 @@ import type { SensorySettings } from "~lib/settings"
 
 export type PageStatePayload = {
   score: number
+  baseScore: number
+  reducedBy: number
+  colorLoadScore: number
+  recommendation: string
+  recommendedFilters: string[]
   url: string
   applied: boolean
   readingMode: boolean

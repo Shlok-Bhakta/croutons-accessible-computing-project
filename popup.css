@@ -127,6 +127,16 @@ body {
   line-height: 1.35;
 }
 
+.croutons-inline-status--recommendation {
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.croutons-status-key {
+  font-weight: 700;
+  color: var(--cr-ink);
+}
+
 .croutons-stack {
   display: flex;
   flex-direction: column;

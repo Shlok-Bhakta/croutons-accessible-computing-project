@@ -24,6 +24,11 @@ function IndexPopup() {
   const settingsRef = useRef<SensorySettings>(DEFAULT_SETTINGS)
   const persistTailRef = useRef(Promise.resolve())
   const [score, setScore] = useState<number | null>(null)
+  const [baseScore, setBaseScore] = useState<number | null>(null)
+  const [reducedBy, setReducedBy] = useState<number>(0)
+  const [colorLoadScore, setColorLoadScore] = useState<number | null>(null)
+  const [colorRecommendation, setColorRecommendation] = useState<string>("")
+  const [recommendedFilters, setRecommendedFilters] = useState<string[]>([])
   const [pageUrl, setPageUrl] = useState<string>("")
   const [error, setError] = useState<string | null>(null)
   const [readingModeActive, setReadingModeActive] = useState(false)
@@ -40,6 +45,11 @@ function IndexPopup() {
     if (!tab?.id) {
       setError("No active tab.")
       setScore(null)
+      setBaseScore(null)
+      setReducedBy(0)
+      setColorLoadScore(null)
+      setColorRecommendation("")
+      setRecommendedFilters([])
       setPageUrl("")
       setReadingModeActive(false)
       return
@@ -54,6 +64,11 @@ function IndexPopup() {
     ) {
       setError("Open a regular website to filter and score sensory load.")
       setScore(null)
+      setBaseScore(null)
+      setReducedBy(0)
+      setColorLoadScore(null)
+      setColorRecommendation("")
+      setRecommendedFilters([])
       setReadingModeActive(false)
       return
     }
@@ -63,16 +78,31 @@ function IndexPopup() {
       })) as PageStateResult
       if (res?.ok) {
         setScore(res.payload.score)
+        setBaseScore(res.payload.baseScore)
+        setReducedBy(res.payload.reducedBy)
+        setColorLoadScore(res.payload.colorLoadScore)
+        setColorRecommendation(res.payload.recommendation)
+        setRecommendedFilters(res.payload.recommendedFilters)
         setReadingModeActive(res.payload.readingMode)
         setError(null)
       } else {
-        setError(res?.error || "Could not reach this page.")
+        setError(res.error || "Could not reach this page.")
         setScore(null)
+        setBaseScore(null)
+        setReducedBy(0)
+        setColorLoadScore(null)
+        setColorRecommendation("")
+        setRecommendedFilters([])
         setReadingModeActive(false)
       }
     } catch {
       setError("Reload the page after installing the extension, then try again.")
       setScore(null)
+      setBaseScore(null)
+      setReducedBy(0)
+      setColorLoadScore(null)
+      setColorRecommendation("")
+      setRecommendedFilters([])
       setReadingModeActive(false)
     }
   }, [])
@@ -104,6 +134,11 @@ function IndexPopup() {
       })) as PageStateResult
       if (res?.ok) {
         setScore(res.payload.score)
+        setBaseScore(res.payload.baseScore)
+        setReducedBy(res.payload.reducedBy)
+        setColorLoadScore(res.payload.colorLoadScore)
+        setColorRecommendation(res.payload.recommendation)
+        setRecommendedFilters(res.payload.recommendedFilters)
         setReadingModeActive(res.payload.readingMode)
       }
     } catch {
@@ -165,6 +200,11 @@ function IndexPopup() {
     score == null
       ? "Sensory load score not available."
       : `Sensory load ${score} out of 100.`
+  const colorScoreText = colorLoadScore == null ? "—" : `${colorLoadScore}/100`
+  const reductionText =
+    baseScore == null || score == null
+      ? "—"
+      : `${baseScore} → ${score} (-${reducedBy})`
 
   return (
     <main className="croutons-root" id="croutons-popup-main">
@@ -196,16 +236,35 @@ function IndexPopup() {
             {error}
           </p>
         ) : (
-          <p className="croutons-inline-status" title={pageUrl}>
-            {pageUrl ? (
-              <>
-                <span className="croutons-sr-only">Page address: </span>
-                {pageUrl}
-              </>
-            ) : (
-              "This tab"
-            )}
-          </p>
+          <>
+            <p className="croutons-inline-status" title={pageUrl}>
+              {pageUrl ? (
+                <>
+                  <span className="croutons-sr-only">Page address: </span>
+                  {pageUrl}
+                </>
+              ) : (
+                "This tab"
+              )}
+            </p>
+            <p className="croutons-inline-status">
+              <span className="croutons-status-key">Color load:</span> {colorScoreText}
+            </p>
+            <p className="croutons-inline-status">
+              <span className="croutons-status-key">Reduction:</span> {reductionText}
+            </p>
+            {colorRecommendation ? (
+              <p className="croutons-inline-status croutons-inline-status--recommendation">
+                {colorRecommendation}
+              </p>
+            ) : null}
+            {recommendedFilters.length > 0 ? (
+              <p className="croutons-inline-status">
+                <span className="croutons-status-key">Suggested:</span>{" "}
+                {recommendedFilters.join(", ")}
+              </p>
+            ) : null}
+          </>
         )}
       </header>
 
@@ -240,6 +299,12 @@ function IndexPopup() {
         <p className="croutons-mini-heading" id="croutons-comfort-heading">
           Visual comfort
         </p>
+        <ToggleRow
+          title="Grayscale"
+          hint="Black and white page view to reduce color stimulation"
+          checked={settings.grayscale}
+          onChange={toggle("grayscale")}
+        />
         <div
           className="croutons-slider-block"
           aria-labelledby="croutons-comfort-heading">
