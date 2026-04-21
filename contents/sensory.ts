@@ -29,6 +29,7 @@ export const config: PlasmoCSConfig = {
 const STYLE_ID = "croutons-sensory-style"
 const READING_ROOT_ID = "croutons-reading-root"
 const READING_STYLE_ID = "croutons-reading-style"
+const AUTO_GRAYSCALE_RECHECK_MS = 4000
 
 const READING_FONT_FACE = `
   @font-face {
@@ -189,9 +190,18 @@ function exitReadingMode() {
 let currentSettings: SensorySettings = { ...DEFAULT_SETTINGS }
 let mediaObserver: MutationObserver | null = null
 let overlayTimer: ReturnType<typeof setInterval> | null = null
+let autoGrayscaleTimer: ReturnType<typeof setInterval> | null = null
+let autoGrayscaleActive = false
+let autoGrayscaleSuppressedByUser = false
 
-function computeSensoryScore(): number {
-  let s = 0
+type Rgba = { r: number; g: number; b: number; a: number }
+
+function computeStructuralSignals(): {
+  motionLoad: number
+  autoplayLoad: number
+  mediaDensityLoad: number
+  overlayLoad: number
+} {
   const videos = document.querySelectorAll("video")
   const iframes = document.querySelectorAll("iframe")
   const canvases = document.querySelectorAll("canvas")
@@ -199,14 +209,285 @@ function computeSensoryScore(): number {
   const motionHints = document.querySelectorAll(
     '[class*="carousel"], [class*="slider"], [class*="marquee"], [class*="animation"]'
   )
+  const overlayHints = document.querySelectorAll(
+    '[role="dialog"], [aria-modal="true"], [class*="modal"], [class*="popup"], [class*="overlay"]'
+  )
 
-  s += Math.min(42, videos.length * 10)
-  s += Math.min(28, iframes.length * 4)
-  s += Math.min(15, canvases.length * 3)
-  s += Math.min(25, autoplayEls.length * 8)
-  s += Math.min(20, Math.floor(motionHints.length / 3))
+  const motionLoad = clamp100(Math.floor(motionHints.length / 2) * 7)
+  const autoplayLoad = clamp100(autoplayEls.length * 20)
+  const mediaDensityLoad = clamp100(
+    videos.length * 12 + iframes.length * 6 + canvases.length * 4
+  )
+  const overlayLoad = clamp100(overlayHints.length * 8)
 
-  return Math.min(100, Math.round(s))
+  return { motionLoad, autoplayLoad, mediaDensityLoad, overlayLoad }
+}
+
+function clamp01(v: number): number {
+  return Math.min(1, Math.max(0, v))
+}
+
+function clamp100(v: number): number {
+  return Math.min(100, Math.max(0, v))
+}
+
+function parseCssColor(input: string): Rgba | null {
+  const s = input.trim().toLowerCase()
+  if (!s || s === "transparent") return null
+
+  if (s.startsWith("#")) {
+    const h = s.slice(1)
+    if (h.length === 3) {
+      const r = parseInt(h[0] + h[0], 16)
+      const g = parseInt(h[1] + h[1], 16)
+      const b = parseInt(h[2] + h[2], 16)
+      return { r, g, b, a: 1 }
+    }
+    if (h.length === 6) {
+      const r = parseInt(h.slice(0, 2), 16)
+      const g = parseInt(h.slice(2, 4), 16)
+      const b = parseInt(h.slice(4, 6), 16)
+      return { r, g, b, a: 1 }
+    }
+    return null
+  }
+
+  const m = s.match(/^rgba?\(([^)]+)\)$/)
+  if (!m) return null
+  const parts = m[1].split(",").map((x) => x.trim())
+  if (parts.length < 3) return null
+  const r = Number(parts[0])
+  const g = Number(parts[1])
+  const b = Number(parts[2])
+  const a = parts.length >= 4 ? Number(parts[3]) : 1
+  if (![r, g, b, a].every(Number.isFinite)) return null
+  return {
+    r: Math.min(255, Math.max(0, r)),
+    g: Math.min(255, Math.max(0, g)),
+    b: Math.min(255, Math.max(0, b)),
+    a: clamp01(a)
+  }
+}
+
+function relativeLuminance({ r, g, b }: Rgba): number {
+  const toLinear = (v: number) => {
+    const x = v / 255
+    return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b)
+}
+
+function contrastRatio(a: Rgba, b: Rgba): number {
+  const l1 = relativeLuminance(a)
+  const l2 = relativeLuminance(b)
+  const hi = Math.max(l1, l2)
+  const lo = Math.min(l1, l2)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+function rgbToHsl({ r, g, b }: Rgba): { h: number; s: number; l: number } {
+  const rn = r / 255
+  const gn = g / 255
+  const bn = b / 255
+  const max = Math.max(rn, gn, bn)
+  const min = Math.min(rn, gn, bn)
+  const d = max - min
+  let h = 0
+  const l = (max + min) / 2
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1))
+  if (d !== 0) {
+    switch (max) {
+      case rn:
+        h = ((gn - bn) / d) % 6
+        break
+      case gn:
+        h = (bn - rn) / d + 2
+        break
+      default:
+        h = (rn - gn) / d + 4
+    }
+    h *= 60
+    if (h < 0) h += 360
+  }
+  return { h, s, l }
+}
+
+function computeColorLoadScore(): number {
+  const root = document.body
+  if (!root) return 0
+
+  const all = root.getElementsByTagName("*")
+  if (all.length === 0) return 0
+
+  const maxSamples = 700
+  const stride = Math.max(1, Math.floor(all.length / maxSamples))
+  const viewportArea = Math.max(1, window.innerWidth * window.innerHeight)
+
+  let samples = 0
+  let contrastWeightedSum = 0
+  let satWeightedSum = 0
+  let weightSum = 0
+  let previousHue: number | null = null
+  let previousSat: number | null = null
+  let transitions = 0
+  let highJumps = 0
+  const hueBins = new Array<number>(12).fill(0)
+
+  for (let i = 0; i < all.length && samples < maxSamples; i += stride) {
+    const el = all[i] as HTMLElement
+    const rect = el.getBoundingClientRect()
+    if (rect.width < 12 || rect.height < 12) continue
+    if (rect.bottom < 0 || rect.top > window.innerHeight) continue
+
+    const cs = window.getComputedStyle(el)
+    if (cs.visibility === "hidden" || cs.display === "none") continue
+
+    const fg = parseCssColor(cs.color)
+    const bg = parseCssColor(cs.backgroundColor)
+    if (!fg || !bg || bg.a < 0.08) continue
+
+    const areaWeight = Math.min(3, Math.max(0.15, (rect.width * rect.height) / viewportArea))
+    const contrast = contrastRatio(fg, bg)
+    const contrastHarshness = clamp01((contrast - 3) / 6)
+    const sat = rgbToHsl(bg).s
+    const { h } = rgbToHsl(bg)
+
+    const hueIdx = Math.floor((h / 360) * hueBins.length) % hueBins.length
+    hueBins[hueIdx] += areaWeight
+    contrastWeightedSum += contrastHarshness * areaWeight
+    satWeightedSum += sat * areaWeight
+    weightSum += areaWeight
+
+    if (previousHue != null && previousSat != null) {
+      transitions += 1
+      const hueDelta = Math.abs(previousHue - h)
+      const wrappedHueDelta = Math.min(hueDelta, 360 - hueDelta)
+      const satDelta = Math.abs(previousSat - sat)
+      if (wrappedHueDelta > 40 || satDelta > 0.25) {
+        highJumps += 1
+      }
+    }
+    previousHue = h
+    previousSat = sat
+    samples += 1
+  }
+
+  if (weightSum <= 0) return 0
+
+  const avgContrastHarshness = contrastWeightedSum / weightSum
+  const avgSaturation = satWeightedSum / weightSum
+  const totalHueWeight = hueBins.reduce((a, b) => a + b, 0)
+  let hueEntropy = 0
+  if (totalHueWeight > 0) {
+    for (const w of hueBins) {
+      if (w <= 0) continue
+      const p = w / totalHueWeight
+      hueEntropy += -p * Math.log2(p)
+    }
+  }
+  const maxEntropy = Math.log2(hueBins.length)
+  const hueEntropyNorm = maxEntropy > 0 ? hueEntropy / maxEntropy : 0
+  const fragmentation = transitions > 0 ? highJumps / transitions : 0
+
+  const score =
+    0.35 * clamp100(avgContrastHarshness * 100) +
+    0.3 * clamp100(avgSaturation * 100) +
+    0.2 * clamp100(hueEntropyNorm * 100) +
+    0.15 * clamp100(fragmentation * 100)
+
+  return Math.round(clamp100(score))
+}
+
+function computeOverallLoadScore(settings: SensorySettings): {
+  score: number
+  baseScore: number
+  reducedBy: number
+  structuralLoadScore: number
+  colorLoadScore: number
+} {
+  const structuralSignals = computeStructuralSignals()
+  const structuralLoadScore = Math.round(
+    0.4 * structuralSignals.motionLoad +
+      0.3 * structuralSignals.autoplayLoad +
+      0.2 * structuralSignals.mediaDensityLoad +
+      0.1 * structuralSignals.overlayLoad
+  )
+  const colorLoadScore = computeColorLoadScore()
+  const baseScore = Math.round(
+    clamp100(0.55 * structuralLoadScore + 0.45 * colorLoadScore)
+  )
+
+  // Show how much current filters likely reduce perceived load.
+  let mitigation = 0
+  if (settings.reduceMotion) mitigation += 8
+  if (settings.blockAutoplay) mitigation += 7
+  if (settings.hideOverlays) mitigation += 6
+  mitigation += Math.round((settings.contrastSoftness / 100) * 10)
+  if (settings.grayscale || (autoGrayscaleActive && !autoGrayscaleSuppressedByUser)) {
+    mitigation += 10
+  }
+  if (isReadingModeActive()) mitigation += 9
+
+  const score = Math.round(clamp100(baseScore - mitigation))
+  const reducedBy = Math.round(clamp100(baseScore - score))
+  return { score, baseScore, reducedBy, structuralLoadScore, colorLoadScore }
+}
+
+function recommendationFromLoad(
+  overallScore: number,
+  colorLoadScore: number,
+  settings: SensorySettings
+): {
+  recommendation: string
+  recommendedFilters: string[]
+} {
+  const suggest = (id: string, enabled: boolean) => (enabled ? null : id)
+  const suggested = [
+    suggest("reduce-motion", settings.reduceMotion),
+    suggest("block-autoplay", settings.blockAutoplay),
+    suggest("hide-overlays", settings.hideOverlays)
+  ].filter((x): x is string => !!x)
+
+  if (overallScore >= 80) {
+    if (colorLoadScore >= 70 && !settings.grayscale) {
+      suggested.unshift("grayscale")
+    }
+    if (settings.contrastSoftness < 60) {
+      suggested.unshift("contrast-softening-strong")
+    }
+    return {
+      recommendation:
+        "High cognitive load. Enable stronger calming filters for motion, media, and color.",
+      recommendedFilters: suggested
+    }
+  }
+  if (overallScore >= 60) {
+    if (settings.contrastSoftness < 35) {
+      suggested.unshift("contrast-softening-moderate")
+    }
+    if (colorLoadScore >= 65 && !settings.grayscale) {
+      suggested.unshift("grayscale")
+    }
+    return {
+      recommendation:
+        "Elevated cognitive load. Consider increasing contrast softening and reducing distractions.",
+      recommendedFilters: suggested
+    }
+  }
+  if (overallScore >= 40) {
+    if (settings.contrastSoftness < 20) {
+      suggested.unshift("contrast-softening-mild")
+    }
+    return {
+      recommendation:
+        "Moderate load. Small adjustments may improve comfort.",
+      recommendedFilters: suggested.slice(0, 2)
+    }
+  }
+  return {
+    recommendation: "Load looks manageable with current settings.",
+    recommendedFilters: []
+  }
 }
 
 /** Maps 0–100 softness to CSS contrast(): higher softness = lower contrast. */
@@ -230,13 +511,26 @@ function buildCss(settings: SensorySettings): string {
   `
     : ""
 
-  const contrastBlock = settings.contrastSoftness > 0
-    ? `
+  const filterParts: string[] = []
+  if (settings.contrastSoftness > 0) {
+    filterParts.push(`contrast(${contrast}) saturate(0.92)`)
+  }
+  if (
+    settings.grayscale ||
+    (settings.autoGrayscaleEnabled &&
+      autoGrayscaleActive &&
+      !autoGrayscaleSuppressedByUser)
+  ) {
+    filterParts.push("grayscale(1)")
+  }
+  const contrastBlock =
+    filterParts.length > 0
+      ? `
     html {
-      filter: contrast(${contrast}) saturate(0.92);
+      filter: ${filterParts.join(" ")};
     }
   `
-    : ""
+      : ""
 
   const overlayBlock = settings.hideOverlays
     ? `
@@ -309,9 +603,9 @@ function attachMediaObserver() {
       rec.addedNodes.forEach((n) => {
         if (n.nodeType !== Node.ELEMENT_NODE) return
         const el = n as Element
-        const medias: HTMLMediaElement[] = [
-          ...Array.from(el.querySelectorAll("video, audio"))
-        ]
+        const medias: HTMLMediaElement[] = Array.from(
+          el.querySelectorAll<HTMLMediaElement>("video, audio")
+        )
         if (el.matches("video, audio")) {
           medias.unshift(el as HTMLMediaElement)
         }
@@ -333,6 +627,44 @@ function stopOverlayLoop() {
   }
 }
 
+function stopAutoGrayscaleLoop() {
+  if (autoGrayscaleTimer) {
+    clearInterval(autoGrayscaleTimer)
+    autoGrayscaleTimer = null
+  }
+}
+
+function recomputeAutoGrayscale(injectIfChanged: boolean) {
+  if (!currentSettings.autoGrayscaleEnabled) {
+    if (!autoGrayscaleActive) return
+    autoGrayscaleActive = false
+    if (injectIfChanged) {
+      injectStyle(buildCss(currentSettings))
+    }
+    return
+  }
+  const nextAuto = computeColorLoadScore() >= currentSettings.autoGrayscaleThreshold
+
+  // If page load drops below threshold, release manual suppression so
+  // future threshold crossings can auto-enable grayscale again.
+  if (!nextAuto && autoGrayscaleSuppressedByUser) {
+    autoGrayscaleSuppressedByUser = false
+  }
+
+  if (nextAuto === autoGrayscaleActive) return
+  autoGrayscaleActive = nextAuto
+  if (injectIfChanged) {
+    injectStyle(buildCss(currentSettings))
+  }
+}
+
+function startAutoGrayscaleLoop() {
+  stopAutoGrayscaleLoop()
+  autoGrayscaleTimer = setInterval(() => {
+    recomputeAutoGrayscale(true)
+  }, AUTO_GRAYSCALE_RECHECK_MS)
+}
+
 function startOverlayLoop() {
   stopOverlayLoop()
   if (!currentSettings.hideOverlays) return
@@ -341,18 +673,42 @@ function startOverlayLoop() {
 }
 
 function applySettings(settings: SensorySettings) {
+  const thresholdChanged =
+    settings.autoGrayscaleThreshold !== currentSettings.autoGrayscaleThreshold
+  const autoToggleChanged =
+    settings.autoGrayscaleEnabled !== currentSettings.autoGrayscaleEnabled
+
+  // Manual toggle should override auto-gray behavior.
+  if (settings.grayscale) {
+    autoGrayscaleSuppressedByUser = false
+  } else if (currentSettings.grayscale && !settings.grayscale) {
+    autoGrayscaleSuppressedByUser = true
+  }
+  // If user changes auto settings, treat that as a fresh auto-grayscale intent.
+  if (thresholdChanged || autoToggleChanged) {
+    autoGrayscaleSuppressedByUser = false
+  }
+
   currentSettings = settings
+  if (!settings.autoGrayscaleEnabled) {
+    autoGrayscaleSuppressedByUser = false
+  }
+  recomputeAutoGrayscale(false)
+  const load = computeOverallLoadScore(settings)
   clearOverlayMarks()
   injectStyle(buildCss(settings))
   blockAutoplayOn()
   attachMediaObserver()
   startOverlayLoop()
+  startAutoGrayscaleLoop()
   if (settings.hideOverlays) markOverlays()
 
-  const score = computeSensoryScore()
+  const score = load.score
   const autoBoost =
     score >= settings.sensoryThreshold &&
-    (settings.reduceMotion || settings.contrastSoftness > 0)
+    (settings.reduceMotion ||
+      settings.contrastSoftness > 0 ||
+      settings.grayscale)
   document.documentElement.toggleAttribute("data-croutons-high-load", autoBoost)
 
   if (isReadingModeActive()) {
@@ -426,8 +782,19 @@ chrome.storage.onChanged.addListener((changes, area) => {
 })
 
 function pageStatePayload(): PageStatePayload {
+  const load = computeOverallLoadScore(currentSettings)
+  const recommendation = recommendationFromLoad(
+    load.score,
+    load.colorLoadScore,
+    currentSettings
+  )
   return {
-    score: computeSensoryScore(),
+    score: load.score,
+    baseScore: load.baseScore,
+    reducedBy: load.reducedBy,
+    colorLoadScore: load.colorLoadScore,
+    recommendation: recommendation.recommendation,
+    recommendedFilters: recommendation.recommendedFilters,
     url: location.href,
     applied: true,
     readingMode: isReadingModeActive()

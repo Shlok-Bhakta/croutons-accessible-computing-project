@@ -127,6 +127,16 @@ body {
   margin-top: 0.25rem;
 }
 
+.croutons-opt-field--row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--cr-line);
+}
+
 .croutons-opt-label {
   display: flex;
   justify-content: space-between;

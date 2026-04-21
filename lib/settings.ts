@@ -4,6 +4,12 @@ export type ThemePreference = "light" | "dark"
 export type SensorySettings = {
   reduceMotion: boolean
   contrastSoftness: number
+  /** Full grayscale page rendering to reduce color stimulation. */
+  grayscale: boolean
+  /** Enables automatic grayscale based on color-load threshold. */
+  autoGrayscaleEnabled: boolean
+  /** 0–100: auto-enable grayscale when color load exceeds this threshold. */
+  autoGrayscaleThreshold: number
   blockAutoplay: boolean
   hideOverlays: boolean
   /** 0–100: auto-apply stronger filters when score exceeds this */
@@ -14,6 +20,9 @@ export type SensorySettings = {
 export const DEFAULT_SETTINGS: SensorySettings = {
   reduceMotion: true,
   contrastSoftness: 36,
+  grayscale: false,
+  autoGrayscaleEnabled: true,
+  autoGrayscaleThreshold: 60,
   blockAutoplay: true,
   hideOverlays: false,
   sensoryThreshold: 45,
@@ -47,6 +56,11 @@ export function normalizeSensorySettings(
   if (input.softenContrast === false) {
     merged.contrastSoftness = 0
   }
+  merged.autoGrayscaleThreshold = Math.max(
+    0,
+    Math.min(100, Number(merged.autoGrayscaleThreshold) || 0)
+  )
+  merged.autoGrayscaleEnabled = merged.autoGrayscaleEnabled !== false
   merged.themePreference = coerceThemePreference(merged.themePreference)
   const { softenContrast: _legacy, ...rest } = merged as SensorySettings & {
     softenContrast?: boolean
